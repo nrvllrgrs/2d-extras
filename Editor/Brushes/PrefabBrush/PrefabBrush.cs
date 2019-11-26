@@ -146,6 +146,11 @@ namespace UnityEditor.Tilemaps
 				+ (Vector3.up * grid.cellSize.z * m_depthStep);
 			rotation = Quaternion.Euler(0f, 90f * m_rotationStep, 0f);
 		}
+
+		public void ResetSteps()
+		{
+			m_rotationStep = m_depthStep = 0;
+		}
 	}
 
 	/// <summary>
@@ -189,6 +194,7 @@ namespace UnityEditor.Tilemaps
 			m_Prefabs = m_SerializedObject.FindProperty("m_Prefabs");
 			m_Anchor = m_SerializedObject.FindProperty("m_Anchor");
 
+			prefabBrush.ResetSteps();
 			prefabBrush.canChangeZPosition = true;
 		}
 
