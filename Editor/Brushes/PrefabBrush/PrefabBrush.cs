@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using UnityEngine;
 using Object = UnityEngine.Object;
 
@@ -28,7 +29,7 @@ namespace UnityEditor.Tilemaps
 		private GameObject prev_brushTarget;
 		private Vector3Int prev_position = Vector3Int.one * int.MaxValue;
 
-		private int m_rotationStep, m_depthStep;
+		private int m_rotationStep;
 
 		/// <summary>
 		/// Paints Prefabs into a given position within the selected layers.
@@ -53,8 +54,12 @@ namespace UnityEditor.Tilemaps
 			if (brushTarget.layer == 31)
 				return;
 
-			int index = Mathf.Clamp(Mathf.FloorToInt(GetPerlinValue(position, m_PerlinScale, k_PerlinOffset) * m_Prefabs.Length), 0, m_Prefabs.Length - 1);
-			GameObject prefab = m_Prefabs[index];
+			// No valid templates, skip
+			var validTemplates = m_Prefabs.Where(x => x != null);
+			if (!validTemplates.Any())
+				return;
+
+			GameObject prefab = m_Prefabs[UnityEngine.Random.Range(0, validTemplates.Count())];
 			GameObject instance = (GameObject) PrefabUtility.InstantiatePrefab(prefab);
 			if (instance != null)
 			{
@@ -129,12 +134,6 @@ namespace UnityEditor.Tilemaps
 			base.Rotate(direction, layout);
 		}
 
-		public override void ChangeZPosition(int change)
-		{
-			m_depthStep += change;
-			base.ChangeZPosition(change);
-		}
-
 		private int Mod(int a, int b)
 		{
 			return (a % b + b) % b;
@@ -142,14 +141,16 @@ namespace UnityEditor.Tilemaps
 
 		public void GetPositionAndRotation(GridLayout grid, Vector3Int coordinate, out Vector3 position, out Quaternion rotation)
 		{
-			position = grid.LocalToWorld(grid.CellToLocalInterpolated(coordinate + m_Anchor))
-				+ (Vector3.up * grid.cellSize.z * m_depthStep);
+			var foo = grid.CellToLocalInterpolated(coordinate + m_Anchor);
+
+			position = grid.LocalToWorld(foo)
+				+ (Vector3.up * (grid.cellSize.z * coordinate.z));
 			rotation = Quaternion.Euler(0f, 90f * m_rotationStep, 0f);
 		}
 
 		public void ResetSteps()
 		{
-			m_rotationStep = m_depthStep = 0;
+			m_rotationStep = 0;
 		}
 	}
 
@@ -193,14 +194,18 @@ namespace UnityEditor.Tilemaps
 			m_SerializedObject = new SerializedObject(target);
 			m_Prefabs = m_SerializedObject.FindProperty("m_Prefabs");
 			m_Anchor = m_SerializedObject.FindProperty("m_Anchor");
-
-			prefabBrush.ResetSteps();
 			prefabBrush.canChangeZPosition = true;
 		}
 
-		protected override void OnDisable()
+		public override void OnToolActivated(GridBrushBase.Tool tool)
 		{
-			base.OnDisable();
+			base.OnToolActivated(tool);
+			prefabBrush.ResetSteps();
+		}
+
+		public override void OnToolDeactivated(GridBrushBase.Tool tool)
+		{
+			base.OnToolDeactivated(tool);
 
 			if (previewBrush != null)
 			{
