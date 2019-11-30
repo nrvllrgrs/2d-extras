@@ -1,7 +1,7 @@
-using System;
+using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
-using Object = UnityEngine.Object;
+using Sirenix.OdinInspector;
 
 namespace UnityEditor.Tilemaps
 {
@@ -12,15 +12,18 @@ namespace UnityEditor.Tilemaps
 	[CustomGridBrush(false, true, false, "Prefab Brush")]
 	public class PrefabBrush : GridBrush
 	{
-		private const float k_PerlinOffset = 100000f;
+		[HideIf("m_Weighted")]
 		/// <summary>
 		/// The selection of Prefabs to paint from
 		/// </summary>
 		public GameObject[] m_Prefabs;
-		/// <summary>
-		/// Factor for distribution of choice of Prefabs to paint
-		/// </summary>
-		public float m_PerlinScale = 0.5f;
+
+		[ShowIf("m_Weighted")]
+		public WeightedPrefab[] m_WeightedPrefabs;
+
+		public bool m_Weighted;
+		public bool m_RandomRotation;
+
 		/// <summary>
 		/// Anchor Point of the Instantiated Prefab in the cell when painting
 		/// </summary>
@@ -54,13 +57,26 @@ namespace UnityEditor.Tilemaps
 			if (brushTarget.layer == 31)
 				return;
 
-			// No valid templates, skip
-			var validTemplates = m_Prefabs.Where(x => x != null);
-			if (!validTemplates.Any())
-				return;
+			GameObject prefab;
+			if (!m_Weighted)
+			{
+				// No valid templates, skip
+				var validTemplates = m_Prefabs.Where(x => x != null);
+				if (!validTemplates.Any())
+					return;
 
-			GameObject prefab = m_Prefabs[UnityEngine.Random.Range(0, validTemplates.Count())];
-			GameObject instance = (GameObject) PrefabUtility.InstantiatePrefab(prefab);
+				prefab = m_Prefabs[Random.Range(0, validTemplates.Count())];
+			}
+			else
+			{
+				var validTemplates = m_WeightedPrefabs.Where(x => x.on && x.item != null);
+				if (!validTemplates.Any())
+					return;
+
+				prefab = GetWeightedRandom(validTemplates);
+			}
+
+			GameObject instance = (GameObject)PrefabUtility.InstantiatePrefab(prefab);
 			if (instance != null)
 			{
 				Erase(grid, brushTarget, position);
@@ -120,6 +136,9 @@ namespace UnityEditor.Tilemaps
 
 		public override void Rotate(RotationDirection direction, GridLayout.CellLayout layout)
 		{
+			if (m_RandomRotation)
+				return;
+
 			switch (direction)
 			{
 				case RotationDirection.Clockwise:
@@ -139,19 +158,73 @@ namespace UnityEditor.Tilemaps
 			return (a % b + b) % b;
 		}
 
-		public void GetPositionAndRotation(GridLayout grid, Vector3Int coordinate, out Vector3 position, out Quaternion rotation)
+		public void GetPositionAndRotation(GridLayout grid, Vector3Int coordinate, out Vector3 position, out Quaternion rotation, bool preview = false)
 		{
-			var foo = grid.CellToLocalInterpolated(coordinate + m_Anchor);
-
-			position = grid.LocalToWorld(foo)
+			position = grid.LocalToWorld(grid.CellToLocalInterpolated(coordinate + m_Anchor))
 				+ (Vector3.up * (grid.cellSize.z * coordinate.z));
-			rotation = Quaternion.Euler(0f, 90f * m_rotationStep, 0f);
+
+			int rotationStep = m_RandomRotation && !preview
+				? Random.Range(0, 4)
+				: m_rotationStep;
+			rotation = Quaternion.Euler(0f, 90f * rotationStep, 0f);
 		}
 
 		public void ResetSteps()
 		{
 			m_rotationStep = 0;
 		}
+
+		private int GetWeightedRandomIndex(IEnumerable<float> items, System.Random random = null)
+		{
+			float totalWeights = items.Sum();
+			float value = random != null
+				? (float)random.NextDouble() * totalWeights
+				: Random.Range(0f, totalWeights);
+
+			int count = items.Count();
+			for (int i = 0; i < count - 1; ++i)
+			{
+				var weight = items.ElementAt(i);
+				if (value < weight)
+				{
+					return i;
+				}
+
+				value -= weight;
+			}
+
+			return items.Count() - 1;
+		}
+
+		private T GetWeightedRandom<T>(IEnumerable<IWeightedItem<T>> items, System.Random random = null)
+		{
+			return items.ElementAt(GetWeightedRandomIndex(items.Select(x => x.weight), random)).item;
+		}
+
+		#region Structures
+
+		[System.Serializable]
+		public class WeightedPrefab : IWeightedItem<GameObject>
+		{
+			[SerializeField, InlineEditor(InlineEditorModes.SmallPreview)]
+			private GameObject m_prefab;
+
+			[SerializeField]
+			private float m_weight = 1f;
+
+			public bool on = true;
+
+			public GameObject item => m_prefab;
+			public float weight => m_weight;
+		}
+
+		public interface IWeightedItem<T>
+		{
+			T item { get; }
+			float weight { get; }
+		}
+
+		#endregion
 	}
 
 	/// <summary>
@@ -220,7 +293,6 @@ namespace UnityEditor.Tilemaps
 		public override void OnPaintInspectorGUI()
 		{
 			m_SerializedObject.UpdateIfRequiredOrScript();
-			prefabBrush.m_PerlinScale = EditorGUILayout.Slider("Perlin Scale", prefabBrush.m_PerlinScale, 0.001f, 0.999f);
 			EditorGUILayout.PropertyField(m_Prefabs, true);
 			EditorGUILayout.PropertyField(m_Anchor);
 			m_SerializedObject.ApplyModifiedPropertiesWithoutUndo();
@@ -232,7 +304,7 @@ namespace UnityEditor.Tilemaps
 
 			if (previewBrush != null)
 			{
-				prefabBrush.GetPositionAndRotation(grid, position.position, out Vector3 worldPos, out Quaternion worldRot);
+				prefabBrush.GetPositionAndRotation(grid, position.position, out Vector3 worldPos, out Quaternion worldRot, true);
 				previewBrush.transform.SetPositionAndRotation(worldPos, worldRot);
 			}
 
