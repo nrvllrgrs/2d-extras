@@ -27,7 +27,7 @@ namespace UnityEditor.Tilemaps
 		/// <summary>
 		/// Anchor Point of the Instantiated Prefab in the cell when painting
 		/// </summary>
-		public Vector3 m_Anchor = new Vector3(0.5f, 0.5f, 0.5f);
+		public Vector3 m_Anchor = new Vector3(0.5f, 0.5f, 0f);
 
 		private GameObject prev_brushTarget;
 		private Vector3Int prev_position = Vector3Int.one * int.MaxValue;
@@ -160,8 +160,10 @@ namespace UnityEditor.Tilemaps
 
 		public void GetPositionAndRotation(GridLayout grid, Vector3Int coordinate, out Vector3 position, out Quaternion rotation, bool preview = false)
 		{
-			position = grid.LocalToWorld(grid.CellToLocalInterpolated(coordinate + m_Anchor))
-				+ (Vector3.up * (grid.cellSize.z * coordinate.z));
+			position = grid.LocalToWorld(grid.CellToLocalInterpolated(coordinate + m_Anchor));
+				//+ (Vector3.up * (grid.cellSize.z * coordinate.z));
+
+			//Debug.LogFormat("Offset = {0}", (Vector3.up * (grid.cellSize.z * coordinate.z)).ToString("F3"));
 
 			int rotationStep = m_RandomRotation && !preview
 				? Random.Range(0, 4)
