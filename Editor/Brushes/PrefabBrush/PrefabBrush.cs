@@ -161,9 +161,6 @@ namespace UnityEditor.Tilemaps
 		public void GetPositionAndRotation(GridLayout grid, Vector3Int coordinate, out Vector3 position, out Quaternion rotation, bool preview = false)
 		{
 			position = grid.LocalToWorld(grid.CellToLocalInterpolated(coordinate + m_Anchor));
-				//+ (Vector3.up * (grid.cellSize.z * coordinate.z));
-
-			//Debug.LogFormat("Offset = {0}", (Vector3.up * (grid.cellSize.z * coordinate.z)).ToString("F3"));
 
 			int rotationStep = m_RandomRotation && !preview
 				? Random.Range(0, 4)
@@ -249,12 +246,24 @@ namespace UnityEditor.Tilemaps
 			{
 				if (m_previewBrush == null)
 				{
-					if (prefabBrush.m_Prefabs != null && prefabBrush.m_Prefabs.Length > 0)
+					if (!prefabBrush.m_Weighted)
 					{
-						var template = prefabBrush.m_Prefabs[0];
-						if (template != null)
+						if (prefabBrush.m_Prefabs != null && prefabBrush.m_Prefabs.Length > 0)
 						{
-							m_previewBrush = Instantiate(template);
+							var template = prefabBrush.m_Prefabs[0];
+							if (template != null)
+							{
+								m_previewBrush = Instantiate(template);
+								m_previewBrush.hideFlags |= HideFlags.HideAndDontSave;
+							}
+						}
+					}
+					else
+					{
+						var info = prefabBrush.m_WeightedPrefabs.FirstOrDefault(x => x.on);
+						if (info != null)
+						{
+							m_previewBrush = Instantiate(info.item);
 							m_previewBrush.hideFlags |= HideFlags.HideAndDontSave;
 						}
 					}
