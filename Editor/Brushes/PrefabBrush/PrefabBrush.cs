@@ -281,10 +281,14 @@ namespace UnityEditor.Tilemaps
 			prefabBrush.canChangeZPosition = true;
 		}
 
-		public override void OnToolActivated(GridBrushBase.Tool tool)
+		protected override void OnDisable()
 		{
-			base.OnToolActivated(tool);
-			prefabBrush.ResetSteps();
+			base.OnDisable();
+
+			if (previewBrush != null)
+			{
+				DestroyImmediate(previewBrush);
+			}
 		}
 
 		public override void OnToolDeactivated(GridBrushBase.Tool tool)
